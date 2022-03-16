@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <util/atomic.h>
 #include <Arduino_FreeRTOS.h>
 #include <FreeRTOSConfig.h>
 #include <Arduino_FreeRTOS.h>
@@ -14,22 +15,15 @@
 void updateEncoder(), motorControl(int);
 double PID(double);
 
-// Encoder variables
+// Global Encoder variables
 volatile int lastEncoded = 0;   // load the variable from RAM rather than a storage register
 volatile long encoderValue = 0; // value can be changed beyond the control of the code section
 long lastencoderValue = 0;
 int lastMSB = 0;
 int lastLSB = 0;
-double angle;
 int offset = 0;
 
-// PID variables
-double set_point = 100;
-double error, error_integral = 0, error_derivative, last_error=0;
-double u, kp, ki, kd;
-double current_time, previous_time = 0, elapsed_time;
-
-// Motor controller variables
+// Global Motor controller variables
 int pwm;
 
 void setup()
@@ -50,11 +44,14 @@ void loop()
 {
   if (lastMSB != encoderValue){
     String str;
-    angle = (360.0/1600.0) * (double)encoderValue + START_ANGLE;
-    pwm = (int)PID(angle);
-    if (pwm > 255)
-    {
-      pwm = 255;
+    double angle;
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE){
+      angle = (360.0/1600.0) * (double)encoderValue + START_ANGLE;
+      pwm = (int)fabs(PID(angle));
+      if (pwm > 255)
+      {
+        pwm = 255;
+      }
     }
     Serial.println(str + "value: "+ encoderValue + " angle: " + angle + " pwm: "+ pwm);
     lastMSB = encoderValue;
@@ -63,7 +60,15 @@ void loop()
 }
 
 double PID(double input_angle){
-   // Get the time information
+  // PID variables
+  double set_point = 100;
+  double error, error_integral = 0, error_derivative, last_error=0;
+  double u, kp, ki, kd;
+  double current_time, previous_time = 0, elapsed_time;
+  kp = 2;
+  ki = 1;
+  kd = 1;
+  // Get the time information
   current_time = millis();
   elapsed_time = current_time - previous_time;
   // Calculate the error
