@@ -7,6 +7,7 @@
       * Implement GetManualOrAutoMode value
       * Implement Get Kp, Ki and Kd value
       * Implement Get Hz value
+    - Make SerialRead and SerialWrite timing correctly
     - Ensure encoder values can be read at 100 Hz minimun (needed for the PID to perform at 100Hz)
     - Add comments for function descriptions
     - Add more tests
@@ -53,13 +54,14 @@ double angle;                   // The current angle reading from the encoder
 long lastencoderValue = 0;
 int lastMSB = 0;
 int lastLSB = 0;
-int offset = 0;
+const int offset = 0; // The offset of the 1DOF arm from start to hovering at 0 degrees
 
 // Global PID controller variables
 static unsigned int set_point; // Set point in degrees
 static unsigned int frequency_ms;
 static unsigned int frequency_hz = 100;
 int pwm; // The output motor speed
+double error;
 
 // LED global variables
 static unsigned int led_delay = 500; // ms
@@ -71,9 +73,10 @@ static unsigned int task2 = 0; // task2 count
 static unsigned int task3 = 0; // task3 count
 bool printed = false;
 
-
-void intTask(void *parameter){
-  while(1){
+void intTask(void *parameter)
+{
+  while (1)
+  {
     vTaskSuspend(NULL);
     task1++;
     i++;
@@ -82,7 +85,7 @@ void intTask(void *parameter){
 void PID(void *parameter)
 {
   // PID variables
-  double error, error_integral = 0, error_derivative, last_error = 0;
+  double error_integral = 0, error_derivative, last_error = 0;
   double u, kp, ki, kd;
   uint16_t current_time, previous_time = 0, delta_time;
   kp = 2;
@@ -97,15 +100,15 @@ void PID(void *parameter)
     delta_time = current_time - previous_time;
     // if (xSemaphoreTake(xSerialSemaphore, (TickType_t)5) == pdTRUE)
     // {
-      
+
     //   // We were able to obtain or "Take" the semaphore and can now access the shared resource.
     //   // We want to have the Serial Port for us alone, as it takes some time to print,
     //   // so we don't want it getting stolen during the middle of a conversion.
-    if(printed == false){
+    if (printed == false)
+    {
       Serial.println(delta_time);
     }
-    
-      
+
     //   xSemaphoreGive(xSerialSemaphore); // Now free or "Give" the Serial Port for others.
     // }
     // Calculate the error
@@ -116,7 +119,7 @@ void PID(void *parameter)
     u = (kp * error) + (ki * error_integral) + (kd * error_derivative);
     last_error = error;
     previous_time = ms;
-    //vTaskDelay(100 / portTICK_PERIOD_MS);
+    // vTaskDelay(100 / portTICK_PERIOD_MS);
   }
 }
 
@@ -126,16 +129,10 @@ void toggleLED(void *parameter)
   {
     task3++;
     if (xSemaphoreTake(xSerialSemaphore, (TickType_t)5) == pdTRUE)
-      {
-        // We were able to obtain or "Take" the semaphore and can now access the shared resource.
-        // We want to have the Serial Port for us alone, as it takes some time to print,
-        // so we don't want it getting stolen during the middle of a conversion.
-        // print out the state of the button:
-        //Serial.println("Entering LED task");
+    {
+      xSemaphoreGive(xSerialSemaphore); // Now free or "Give" the Serial Port for others.
+    }
 
-        xSemaphoreGive(xSerialSemaphore); // Now free or "Give" the Serial Port for others.
-      }
-    
     digitalWrite(led_pin, HIGH);
     vTaskDelay(led_delay / portTICK_PERIOD_MS);
     digitalWrite(led_pin, LOW);
@@ -143,7 +140,7 @@ void toggleLED(void *parameter)
   }
 }
 
-void readDelay(void *parameter)
+void readSerial(void *parameter)
 {
   char c;
   char buf[BUF_LEN];
@@ -173,13 +170,18 @@ void readDelay(void *parameter)
   }
 }
 
+void readSerial(void *parameter)
+{
+
+  frequency_ms = ((1.0f / frequency_hz) * 1000);
+}
 void writeSerial(void *parameter)
 {
   while (1)
   {
     if (lastMSB != encoderValue)
     {
-      String str;
+      char str[60];
       // ATOMIC_BLOCK(ATOMIC_RESTORESTATE){
       angle = (360.0 / 1600.0) * (double)encoderValue + START_ANGLE;
       // Uncomment for use with PID
@@ -189,10 +191,17 @@ void writeSerial(void *parameter)
       //    pwm = 255;
       //  }
       //}
-      // Serial.println(str + "value: "+ encoderValue + " angle: " + angle + " pwm: "+ pwm);
-      Serial.println(str + "value: " + encoderValue + " angle: " + angle);
+      if (xSemaphoreTake(xSerialSemaphore, (TickType_t)5) == pdTRUE)
+      {
+        //Concatentate string using sprintf and write the string to serial port
+        sprintf(str, "angle:%f,pwm:%d,error:%f", angle, pwm, error);
+        Serial.write(str);
+
+        xSemaphoreGive(xSerialSemaphore); // Now free or "Give" the Serial Port for others.
+      }
       lastMSB = encoderValue;
     }
+    vTaskDelay(portTICK_PERIOD_MS);
   }
 }
 
@@ -201,17 +210,17 @@ void setup()
 
   /* Timer 1 setup */
   TCCR1A = 0x00; // Set Timer1 control register A to 0000 0000
-  //Set the prescaler of Timer1 to 1 and turn on CTC mode (Timer1 control register B = 0000 1001)
-  TCCR1B = 0x09; // WGM12 = 1 CS12 = 0 CS11 = 0 CS10 = 1
+  // Set the prescaler of Timer1 to 1 and turn on CTC mode (Timer1 control register B = 0000 1001)
+  TCCR1B = 0x09;   // WGM12 = 1 CS12 = 0 CS11 = 0 CS10 = 1
   TCNT1 = t1_load; // Reset Timer1
   OCR1A = t1_comp; // Set Timer1 compare value to every 1ms
-  TIMSK1 = 0x02; // Enable Timer1 compare interrupt TIMSK1 = 0000 0010
+  TIMSK1 = 0x02;   // Enable Timer1 compare interrupt TIMSK1 = 0000 0010
 
-  //Serial communication settings
+  // Serial communication settings
   Serial.begin(9600);
   while (!Serial)
   {
-    ; // wait for serial port to connect. Needed for native USB, on LEONARDO, MICRO, YUN, and other 32u4 based boards.
+    ; // wait for serial port to connect.
   }
   // Semaphores are useful to stop a Task proceeding, where it should be paused to wait,
   // because it is sharing a resource, such as the Serial port.
@@ -224,8 +233,8 @@ void setup()
   }
   interruptSemaphore = xSemaphoreCreateBinary();
 
-  //Serial.print("LED BLINK, CUSTOM LED DELAY\n\n");
-  // Pin mode settings for encoder and emergency stop button
+  // Serial.print("LED BLINK, CUSTOM LED DELAY\n\n");
+  //  Pin mode settings for encoder and emergency stop button
   pinMode(ENC_A, INPUT);
   pinMode(ENC_B, INPUT);
   pinMode(led_pin, OUTPUT);
@@ -244,8 +253,7 @@ void setup()
       1024,
       NULL,
       1,
-      NULL
-  );
+      NULL);
 
   xTaskCreate(    // FreeRTOS task creation
       PID,        // Function to be called
@@ -256,56 +264,72 @@ void setup()
       &xPIDHandle // Task handle
   );
 
-  xTaskCreate(    // FreeRTOS task creation
-      intTask,    // Function to be called
-      "interruptTask", // Name of task
-      1024,       // Stack size
-      NULL,       // Parameter to pass
-      1,          // Task priority
-      NULL        // Task handle
-  );
+  xTaskCreate(
+      intTask,
+      "interruptTask",
+      1024,
+      NULL,
+      1,
+      NULL);
 
-  // xTaskCreate(  // FreeRTOS task creation
-  //             writeSerial,     // Function to be called
-  //             "Write encoder",  // Name of task
-  //             1024,           // Stack size
-  //             NULL,           // Parameter to pass
-  //             1,              // Task priority
-  //             NULL           // Task handle
-  // );
+  xTaskCreate(
+      writeSerial,
+      "Write to serial",
+      1024,
+      NULL,
+      1,
+      NULL);
+
+  // Remove this:
   frequency_ms = ((1.0f / frequency_hz) * 1000);
+
+  // Start FreeRTOS scheduler
   vTaskStartScheduler();
-  // Delete "setup and loop" task
+
+  // Delete setup() task
   vTaskDelete(NULL);
-  
-  
 }
 
 void loop()
 {
 }
 
-ISR(TIMER1_COMPA_vect){
+ISR(TIMER1_COMPA_vect)
+{
   ms++;
-  if(ms % frequency_ms == 0){
-    //xSemaphoreGiveFromISR(interruptSemaphore, NULL);
+  if (ms % frequency_ms == 0)
+  {
+    // xSemaphoreGiveFromISR(interruptSemaphore, NULL);
     BaseType_t check_yield_required;
     check_yield_required = xTaskResumeFromISR(xPIDHandle);
     portYIELD_FROM_ISR();
   }
-  #ifdef TESTING
+#ifdef TESTING
   // Create better test for timing
-      if (ms >= 10000 && printed == false){
-        printed = true;
-        if (xSemaphoreTake(xSerialSemaphore, (TickType_t)5) == pdTRUE)
-        {
-          Serial.println("Tasks count in the last 10 seconds:");
-          Serial.print("Task 1 (FRQ) executed: "); Serial.print(task1); Serial.print("\t\t"); Serial.print((double)task1/10); Serial.println(" Hz.");
-          Serial.print("Task 2 (PID) executed: "); Serial.print(task2); Serial.print("\t\t"); Serial.print((double)task2/10); Serial.println(" Hz.");
-          Serial.print("Task 3 (LED) executed: "); Serial.print(task3); Serial.print("\t\t"); Serial.print((double)task3/10); Serial.println(" Hz.");
-          xSemaphoreGive(xSerialSemaphore); // Now free or "Give" the Serial Port for others.
-        }
-  #endif
+  if (ms >= 10000 && printed == false)
+  {
+    printed = true;
+    if (xSemaphoreTake(xSerialSemaphore, (TickType_t)5) == pdTRUE)
+    {
+      Serial.println("Tasks count in the last 10 seconds:");
+      Serial.print("Task 1 (FRQ) executed: ");
+      Serial.print(task1);
+      Serial.print("\t\t");
+      Serial.print((double)task1 / 10);
+      Serial.println(" Hz.");
+      Serial.print("Task 2 (PID) executed: ");
+      Serial.print(task2);
+      Serial.print("\t\t");
+      Serial.print((double)task2 / 10);
+      Serial.println(" Hz.");
+      Serial.print("Task 3 (LED) executed: ");
+      Serial.print(task3);
+      Serial.print("\t\t");
+      Serial.print((double)task3 / 10);
+      Serial.println(" Hz.");
+      xSemaphoreGive(xSerialSemaphore); // Now free or "Give" the Serial Port for others.
+    }
+#endif
   }
 }
 
