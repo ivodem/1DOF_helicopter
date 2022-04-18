@@ -289,7 +289,7 @@ void readSerial(void *parameter)
 
       xSemaphoreGive(xSerialSemaphore); // Now free or "Give" the Serial Port for others.
     }
-    vTaskDelay(freqToTime(21) / portTICK_PERIOD_MS);
+    vTaskDelay(freqToTime(20) / portTICK_PERIOD_MS);
   }
 }
 void writeSerial(void *parameter)
@@ -318,7 +318,7 @@ void writeSerial(void *parameter)
       }
       lastMSB = encoderValue;
     }
-    vTaskDelay(freqToTime(21) / portTICK_PERIOD_MS);
+    vTaskDelay(freqToTime(20) / portTICK_PERIOD_MS);
   }
 }
 /**
