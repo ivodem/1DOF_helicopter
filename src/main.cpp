@@ -230,16 +230,16 @@ void PID(void *parameter)
     u = (kp * error) + (ki * error_integral) + (kd * error_derivative);
     last_error = error;
     previous_time = ms;
-
-    if (u > 255)
+    pwm = u;
+    if (pwm > 255)
     {
-      u = 255;
+      pwm = 255;
     }
-    else if (u < 125)
+    else if (pwm < 125)
     {
-      u = 125;
+      pwm = 125;
     }
-    analogWrite(MOTOR, u); // Write pwm signal to motor
+    analogWrite(MOTOR, pwm); // Write pwm signal to motor
   }
 }
 
@@ -267,6 +267,7 @@ void readSerial(void *parameter)
   char str[BUF_LEN]; // Create buffer for output
   uint8_t idx = 0;
 
+  String test = "{sp:15,kp:20,ki:5,kd:0.5}";
   while (1)
   {
     // Clear whole buffer
@@ -311,7 +312,10 @@ void writeSerial(void *parameter)
       if (xSemaphoreTake(xSerialSemaphore, (TickType_t)5) == pdTRUE)
       {
         // Concatentate string using sprintf and write the string to serial port
-        sprintf(str, "angle:%f,pwm:%d,error:%f", angle, pwm, error);
+        //sprintf(str, "angle:%f,pwm:%d,error:%f", angle, pwm, error);
+        angle = 20.0;
+        pwm = 210;
+        sprintf(str, "angle:%f,pwm:%d", angle, pwm);
         Serial.write(str);
 
         xSemaphoreGive(xSerialSemaphore); // Now free or "Give" the Serial Port for others.
