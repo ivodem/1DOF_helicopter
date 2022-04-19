@@ -287,7 +287,6 @@ void readSerial(void *parameter)
           Serial.println(str);
         }
       }
-
       xSemaphoreGive(xSerialSemaphore); // Now free or "Give" the Serial Port for others.
     }
     vTaskDelay(freqToTime(20) / portTICK_PERIOD_MS);
@@ -298,23 +297,29 @@ void writeSerial(void *parameter)
   while (1)
   { 
     task4++;
-    char str[60];
-
     angle = (360.0 / 1600.0) * (double)encoderValue + START_ANGLE;
-    if (xSemaphoreTake(xSerialSemaphore, (TickType_t)5) == pdTRUE)
+    if (xSemaphoreTake(xSerialSemaphore, (TickType_t)10) == pdTRUE)
     {
       // Concatentate string using sprintf and write the string to serial port
       //sprintf(str, "angle:%f,pwm:%d,error:%f", angle, pwm, error);
+      char str[25];
+      char buf[5];
       angle = 20.0;
       pwm = 210;
-      sprintf(str, "angle:%.2f,pwm:%d", angle, pwm);
-      Serial.write(str);
+      dtostrf(angle,5,1,buf);
+      sprintf(str, "angle:%s,pwm:%d\n", buf, pwm);
+      Serial.print(str);
+      //Serial.write(angle);
+      // Serial.write(",pwm:");
+      // Serial.write(char(pwm));
+      // Serial.write("\n");
 
       xSemaphoreGive(xSerialSemaphore); // Now free or "Give" the Serial Port for others.
     }
     lastMSB = encoderValue;
+    vTaskDelay(freqToTime(2) / portTICK_PERIOD_MS);
   }
-  vTaskDelay(freqToTime(20) / portTICK_PERIOD_MS);
+  
   
 }
 /**
