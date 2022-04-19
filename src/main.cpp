@@ -298,32 +298,24 @@ void writeSerial(void *parameter)
   while (1)
   { 
     task4++;
-    if (lastMSB != encoderValue)
+    char str[60];
+
+    angle = (360.0 / 1600.0) * (double)encoderValue + START_ANGLE;
+    if (xSemaphoreTake(xSerialSemaphore, (TickType_t)5) == pdTRUE)
     {
-      char str[60];
+      // Concatentate string using sprintf and write the string to serial port
+      //sprintf(str, "angle:%f,pwm:%d,error:%f", angle, pwm, error);
+      angle = 20.0;
+      pwm = 210;
+      sprintf(str, "angle:%.2f,pwm:%d", angle, pwm);
+      Serial.write(str);
 
-      angle = (360.0 / 1600.0) * (double)encoderValue + START_ANGLE;
-      // Uncomment for use with PID
-      // pwm = (int)fabs(PID(angle));
-      //  if (pwm > 255)
-      //  {
-      //    pwm = 255;
-      //  }
-      if (xSemaphoreTake(xSerialSemaphore, (TickType_t)5) == pdTRUE)
-      {
-        // Concatentate string using sprintf and write the string to serial port
-        //sprintf(str, "angle:%f,pwm:%d,error:%f", angle, pwm, error);
-        angle = 20.0;
-        pwm = 210;
-        sprintf(str, "angle:%f,pwm:%d", angle, pwm);
-        Serial.write(str);
-
-        xSemaphoreGive(xSerialSemaphore); // Now free or "Give" the Serial Port for others.
-      }
-      lastMSB = encoderValue;
+      xSemaphoreGive(xSerialSemaphore); // Now free or "Give" the Serial Port for others.
     }
-    vTaskDelay(freqToTime(20) / portTICK_PERIOD_MS);
+    lastMSB = encoderValue;
   }
+  vTaskDelay(freqToTime(20) / portTICK_PERIOD_MS);
+  
 }
 /**
  * @brief Construct a new ISR object
