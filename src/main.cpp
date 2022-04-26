@@ -54,12 +54,13 @@ static const int START_ANGLE = -30.0;
 
 // Global general variables
 int running = 1;
-int auto_mode = 0;
+int auto_mode = 1;
 
 // Global timer values
 const uint16_t t1_load = 0;
 const uint16_t t1_comp = 16000;
 static uint16_t ms = 0;
+static uint16_t pid_delay = 0;
 
 // Global Encoder variables
 volatile int lastEncoded = 0;   // load the variable from RAM rather than a storage register
@@ -209,14 +210,55 @@ void PID(void *parameter)
     kd = 0;
     const int PWM_HIGH = 255;
     const int PWM_LOW = 240;
-
+    int step = 0;
     // Get the time information
+    if (auto_mode == 1)
+    {
+        set_point = 0;
+    }
+    
     while (1)
     {
         vTaskSuspend(NULL);
 #ifdef TESTING
         task1++;
 #endif
+        if (auto_mode == 1)
+        {
+            if (pid_delay >= 20000)
+            {
+                switch (step)
+                {
+                case 0:
+                    set_point = 15;
+                    break;
+                case 1:
+                    set_point = -15;
+                    break;
+                case 2:
+                    set_point = 10;
+                    break;
+                case 3:
+                    set_point = -10;
+                    break;
+                case 4:
+                    set_point = 0;
+                    break;
+                default:
+                    break;
+                }
+                step ++;
+                if (step > 4)
+                {
+                    step = 0;
+                }
+                pid_delay = 0;
+            }
+            
+            
+            
+        }
+        
         // Calculate angle
         angle = (360.0 / 1600.0) * (double)encoderValue + START_ANGLE;
         // Calculate time difference
@@ -311,6 +353,7 @@ void serialWrite(void *parameter)
 ISR(TIMER1_COMPA_vect)
 {
     ms++;
+    pid_delay++;
     if (ms % (int)((1.0f / pid_freq_ms) * 1000) == 0)
     {
         BaseType_t check_yield_required;
