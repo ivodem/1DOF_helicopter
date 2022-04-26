@@ -217,9 +217,9 @@ int freqToTime(int freq)
 void PID(void *parameter)
 {
   // PID variables
-  double error_integral = 0, error_derivative, last_error = 0;
+  double error_integral = 0, error_derivative = 0, last_error = 0;
   double kp, ki, kd;
-  int16_t current_time, previous_time = 0, delta_time;
+  int16_t current_time = 0, previous_time = 0, delta_time = 0;
   // Below kind of works
   // kp = 12;
   // ki = 0.1;
@@ -239,22 +239,23 @@ void PID(void *parameter)
 #ifdef TESTING
     task1++;
 #endif
+    // Calculate angle
     angle = (360.0 / 1600.0) * (double)encoderValue + START_ANGLE;
+    // Calculate time difference
     current_time = ms;
     delta_time = current_time - previous_time;
     //  Calculate the error
-    //  error = set_point - angle;
-    //  error_integral += error * delta_time;
-    //  error_derivative = (error - last_error) / delta_time;
     error = set_point - angle;
-    error_integral += error * delta_time;
+    error_integral += (error * delta_time);
     error_derivative = (error - last_error) / delta_time;
     last_error = error;
-    // Calculate the output
-    u = (kp * error) + (ki * error_integral) + (kd * error_derivative);
     if (error_integral > 4000) error_integral = 4000;
     if (error_integral < -4000) error_integral = -4000;
 
+    // Calculate the output
+    u = (kp * error) + (ki * error_integral) + (kd * error_derivative);
+
+    // Limit the PWM output to the fan
     if ((int)u < PWM_HIGH && (int)u > PWM_LOW)
     {
       analogWrite(MOTOR, u); // Write pwm signal to motor
@@ -270,6 +271,7 @@ void PID(void *parameter)
       analogWrite(MOTOR, PWM_LOW);
       pwm = PWM_LOW;
     }
+    // Get the end time
     previous_time = ms;
   }
 }
