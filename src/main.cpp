@@ -13,6 +13,8 @@
     - Add more tests
 */
 #include <Arduino.h>
+#include <stdio.h>
+#include <string.h>
 #include <util/atomic.h>
 #include <Arduino_FreeRTOS.h>
 #include <FreeRTOSConfig.h>
@@ -41,9 +43,11 @@ void readSerial(void *);
 void writeSerial(void *);
 void emergencyStop();
 int freqToTime(int);
+void recvWithStartEndMarkers();
+void parseData();
 
 // Settings
-static const int START_ANGLE = -45.0;
+static const int START_ANGLE = -22.0;
 
 // Constants
 
@@ -51,7 +55,6 @@ static const int START_ANGLE = -45.0;
 const uint16_t t1_load = 0;
 const uint16_t t1_comp = 16000;
 static uint16_t ms = 0;
-static uint16_t i = 0;
 
 // Global Encoder variables
 volatile int lastEncoded = 0;   // load the variable from RAM rather than a storage register
@@ -63,18 +66,30 @@ int lastLSB = 0;
 const int offset = 0; // The offset of the 1DOF arm from start to hovering at 0 degrees
 
 // Global PID controller variables
-static unsigned int set_point; // Set point in degrees
-static unsigned int pid_freq_ms;
-static unsigned int pid_freq_hz = 100;
-int pwm; // The output motor speed
+double set_point; // Set point in degrees
 double error;
+int pwm; // The output motor speed
+double u;
+static unsigned int pid_freq_ms;
+static unsigned int pid_freq_hz = 50;
 
 // LED global variables
 static unsigned int led_delay = 500; // ms
 
-// Test variables
-#define TESTING
+// Serial Read variables
+const byte numChars = 48;
+char receivedChars[numChars];
+boolean newData = false;
+char tempChars[numChars];        // temporary array for use when parsing
+// Variables to hold the data from serial
+char messageFromPC[numChars] = {0};
+int integerFromPC = 0;
+float floatFromPC = 0.0;
 
+
+
+// Test variables
+// #define TESTING
 #ifdef TESTING
 static unsigned int task1 = 0; // task1 count
 static unsigned int task2 = 0; // task2 count
@@ -109,14 +124,16 @@ void setup()
 
   /* Pin setup */
   // Pin mode settings for encoder and emergency stop button
-  pinMode(ENC_A, INPUT_PULLUP);
-  pinMode(ENC_B, INPUT_PULLUP);
+  pinMode(ENC_A, INPUT);
+  pinMode(ENC_B, INPUT);
   pinMode(EMS, INPUT_PULLUP);
   pinMode(MOTOR, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
 
-  analogWrite(MOTOR, 0); // Ensure motor is turned off
-
+  // analogWrite(MOTOR, 0); // Ensure motor is turned off
+  //  the model of encoder is with open-collector output
+  digitalWrite(ENC_A, HIGH); // turn pullup resistor on
+  digitalWrite(ENC_B, HIGH);
   // Create interrupts for Encoder
   // Call updateEncoder() on high/low change
   // on interrupt 0 (pin 2), or interrupt 1 (pin 3)
@@ -163,7 +180,7 @@ void setup()
 
   /* Initialise variable */
   pid_freq_ms = freqToTime(pid_freq_hz);
-
+  set_point = -10.0;
   // Start FreeRTOS scheduler
   vTaskStartScheduler();
 
@@ -180,7 +197,7 @@ void loop()
 }
 
 /**
- * @brief Converts frequency (Hz) to time (ms) delay
+ * @brief Converts frequency (Hz) to time (ms) delay to be used to change the PID frequency
  *
  * @param freq Frequency in Hz
  * @return int Time delay in milliseconds
@@ -201,45 +218,59 @@ void PID(void *parameter)
 {
   // PID variables
   double error_integral = 0, error_derivative, last_error = 0;
-  double u, kp, ki, kd;
-  uint16_t current_time, previous_time = 0, delta_time;
-  kp = 2;
-  ki = 1;
-  kd = 1;
+  double kp, ki, kd;
+  int16_t current_time, previous_time = 0, delta_time;
+  // Below kind of works
+  // kp = 12;
+  // ki = 0.1;
+  // kd = 1;
+  // New PID:
+  kp = 15; // 30 = oscillation
+  ki = 2;
+  kd = 0;
+  set_point = -15;
+  const int PWM_HIGH = 255;
+  const int PWM_LOW = 230;
+  
   // Get the time information
   while (1)
   {
     vTaskSuspend(NULL);
+#ifdef TESTING
     task1++;
+#endif
+    angle = (360.0 / 1600.0) * (double)encoderValue + START_ANGLE;
     current_time = ms;
     delta_time = current_time - previous_time;
-    if (xSemaphoreTake(xSerialSemaphore, (TickType_t)5) == pdTRUE)
-    {
-
-      // We were able to obtain or "Take" the semaphore and can now access the shared resource.
-      // We want to have the Serial Port for us alone, as it takes some time to print,
-      // so we don't want it getting stolen during the middle of a conversion.
-
-      xSemaphoreGive(xSerialSemaphore); // Now free or "Give" the Serial Port for others.
-    }
-    // Calculate the error
+    //  Calculate the error
+    //  error = set_point - angle;
+    //  error_integral += error * delta_time;
+    //  error_derivative = (error - last_error) / delta_time;
     error = set_point - angle;
     error_integral += error * delta_time;
     error_derivative = (error - last_error) / delta_time;
+    last_error = error;
     // Calculate the output
     u = (kp * error) + (ki * error_integral) + (kd * error_derivative);
-    last_error = error;
+    error_integral += error;
+    // if (error_integral >4000) error_integral = 4000;
+    // if (error_integral <-4000) error_integral = -4000;
+    if ((int)u < PWM_HIGH && (int)u > PWM_LOW)
+    {
+      analogWrite(MOTOR, u); // Write pwm signal to motor
+      pwm = (int)u;
+    }
+    else if ((int)u > PWM_HIGH)
+    {
+      analogWrite(MOTOR, PWM_HIGH);
+      pwm = PWM_HIGH;
+    }
+    else
+    {
+      analogWrite(MOTOR, PWM_LOW);
+      pwm = PWM_LOW;
+    }
     previous_time = ms;
-    pwm = u;
-    if (pwm > 255)
-    {
-      pwm = 255;
-    }
-    else if (pwm < 125)
-    {
-      pwm = 125;
-    }
-    analogWrite(MOTOR, pwm); // Write pwm signal to motor
   }
 }
 
@@ -247,12 +278,9 @@ void toggleLED(void *parameter)
 {
   while (1)
   {
+#ifdef TESTING
     task2++;
-    if (xSemaphoreTake(xSerialSemaphore, (TickType_t)5) == pdTRUE)
-    {
-      xSemaphoreGive(xSerialSemaphore); // Now free or "Give" the Serial Port for others.
-    }
-
+#endif
     digitalWrite(LED_PIN, HIGH);
     vTaskDelay(led_delay / portTICK_PERIOD_MS);
     digitalWrite(LED_PIN, LOW);
@@ -262,30 +290,23 @@ void toggleLED(void *parameter)
 
 void readSerial(void *parameter)
 {
-  static const uint8_t BUF_LEN = 45;
-  char c;
-  char str[BUF_LEN]; // Create buffer for output
-  uint8_t idx = 0;
-
-  String test = "{sp:15,kp:20,ki:5,kd:0.5}";
   while (1)
   {
-    // Clear whole buffer
-    memset(str, 0, BUF_LEN);
+#ifdef TESTING
     task3++;
+#endif
+
     // Take semaphore and read values from serial
     if (xSemaphoreTake(xSerialSemaphore, (TickType_t)5) == pdTRUE)
     {
-      if (Serial.available() > 0)
+      recvWithStartEndMarkers(); //Receive data from serial
+      if (newData == true)
       {
-        char str[BUF_LEN];
-        pid_freq_hz = Serial.parseInt();
-        if (pid_freq_hz != 0)
-        {
-          led_delay = freqToTime(pid_freq_hz) / 2;
-          sprintf(str, "led_delay updated to: %i Hz and %i ms", pid_freq_hz, led_delay);
-          Serial.println(str);
-        }
+        strcpy(tempChars, receivedChars);
+        // this temporary copy is necessary to protect the original data
+        // because strtok() used in parseData() replaces the commas with \0
+        parseData();
+        newData = false;
       }
       xSemaphoreGive(xSerialSemaphore); // Now free or "Give" the Serial Port for others.
     }
@@ -295,32 +316,28 @@ void readSerial(void *parameter)
 void writeSerial(void *parameter)
 {
   while (1)
-  { 
+  {
+#ifdef TESTING
     task4++;
-    angle = (360.0 / 1600.0) * (double)encoderValue + START_ANGLE;
+#endif
     if (xSemaphoreTake(xSerialSemaphore, (TickType_t)10) == pdTRUE)
     {
       // Concatentate string using sprintf and write the string to serial port
-      //sprintf(str, "angle:%f,pwm:%d,error:%f", angle, pwm, error);
-      char str[25];
-      char buf[5];
-      angle = 20.0;
-      pwm = 210;
-      dtostrf(angle,5,1,buf);
-      sprintf(str, "angle:%s,pwm:%d\n", buf, pwm);
+      // sprintf(str, "angle:%f,pwm:%d,error:%f", angle, pwm, error);
+      char str[25];  // String buffer for writing to serial
+      char str2[30]; // String buffer for writing to serial
+      memset(str, 0, 25);
+      memset(str2, 0, 25);
+      char buf_angle[5];               // String buffer for dtostrf()
+      dtostrf(angle, 5, 1, buf_angle); // Convert double to String (char[])
+      sprintf(str, "angle:%s,pwm:%d\n", buf_angle, pwm);
+      // sprintf(str2, "e_deri:%d,e_integr:%d,u:%d", error_;
       Serial.print(str);
-      //Serial.write(angle);
-      // Serial.write(",pwm:");
-      // Serial.write(char(pwm));
-      // Serial.write("\n");
-
       xSemaphoreGive(xSerialSemaphore); // Now free or "Give" the Serial Port for others.
     }
     lastMSB = encoderValue;
     vTaskDelay(freqToTime(2) / portTICK_PERIOD_MS);
   }
-  
-  
 }
 /**
  * @brief Construct a new ISR object
@@ -329,7 +346,7 @@ void writeSerial(void *parameter)
 ISR(TIMER1_COMPA_vect)
 {
   ms++;
-  if (ms % (int)((1.0f / 100) * 1000) == 0)
+  if (ms % (int)((1.0f / pid_freq_ms) * 1000) == 0)
   {
     BaseType_t check_yield_required;
     check_yield_required = xTaskResumeFromISR(xPIDHandle);
@@ -365,8 +382,8 @@ ISR(TIMER1_COMPA_vect)
       Serial.println(" Hz.");
       xSemaphoreGive(xSerialSemaphore); // Now free or "Give" the Serial Port for others.
     }
-#endif
   }
+#endif
 }
 void updateEncoder()
 {
@@ -390,9 +407,68 @@ void emergencyStop()
   - Add setting the PWM to 0 (stopping the fan)
   - Write message to serial to notify InduSoft that EMS has been pressed
   */
+  analogWrite(MOTOR, 0);
   TIMSK1 = 0x00;         // Stop timer
   detachInterrupt(INT0); // Detach both encoder interrupts
   detachInterrupt(INT1);
   vTaskEndScheduler(); // End FreeRTOS scheduler
   Serial.println("Emergency Stop!");
+}
+
+/**
+ * @brief Receive data from Serial with start and end markers
+ *
+ */
+void recvWithStartEndMarkers()
+{
+  static boolean recvInProgress = false;
+  static byte ndx = 0;
+  char startMarker = '{';             
+  char endMarker = '}';
+  char rc;
+
+  while (Serial.available() > 0 && newData == false)
+  {
+    rc = Serial.read();
+
+    if (recvInProgress == true)
+    {
+      if (rc != endMarker)
+      {
+        receivedChars[ndx] = rc;
+        ndx++;
+        if (ndx >= numChars)
+        {
+          ndx = numChars - 1;
+        }
+      }
+      else
+      {
+        receivedChars[ndx] = '\0'; // terminate the string
+        recvInProgress = false;
+        ndx = 0;
+        newData = true;
+      }
+    }
+
+    else if (rc == startMarker)
+    {
+      recvInProgress = true;
+    }
+  }
+}
+
+void parseData()
+{ // split the data into its parts
+
+  char *strtokIndx; // this is used by strtok() as an index
+
+  strtokIndx = strtok(tempChars, ","); // get the first part - the string
+  strcpy(messageFromPC, strtokIndx);   // copy it to messageFromPC
+
+  strtokIndx = strtok(NULL, ",");   // this continues where the previous call left off
+  integerFromPC = atoi(strtokIndx); // convert this part to an integer
+
+  strtokIndx = strtok(NULL, ",");
+  floatFromPC = atof(strtokIndx); // convert this part to a float
 }
