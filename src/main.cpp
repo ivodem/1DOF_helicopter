@@ -252,9 +252,9 @@ void PID(void *parameter)
     last_error = error;
     // Calculate the output
     u = (kp * error) + (ki * error_integral) + (kd * error_derivative);
-    error_integral += error;
-    // if (error_integral >4000) error_integral = 4000;
-    // if (error_integral <-4000) error_integral = -4000;
+    if (error_integral > 4000) error_integral = 4000;
+    if (error_integral < -4000) error_integral = -4000;
+
     if ((int)u < PWM_HIGH && (int)u > PWM_LOW)
     {
       analogWrite(MOTOR, u); // Write pwm signal to motor
