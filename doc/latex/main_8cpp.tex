@@ -1,0 +1,184 @@
+\hypertarget{main_8cpp}{}\doxysection{src/main.cpp File Reference}
+\label{main_8cpp}\index{src/main.cpp@{src/main.cpp}}
+
+
+Controlling a 1DOF helicopter angle using a PID controller using a Free\+RTOS implementation.  
+
+
+{\ttfamily \#include $<$Arduino.\+h$>$}\newline
+{\ttfamily \#include $<$stdio.\+h$>$}\newline
+{\ttfamily \#include $<$string.\+h$>$}\newline
+{\ttfamily \#include $<$util/atomic.\+h$>$}\newline
+{\ttfamily \#include $<$Arduino\+\_\+\+Free\+RTOS.\+h$>$}\newline
+{\ttfamily \#include $<$Free\+RTOSConfig.\+h$>$}\newline
+{\ttfamily \#include $<$semphr.\+h$>$}\newline
+{\ttfamily \#include $<$task.\+h$>$}\newline
+\doxysubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+void \mbox{\hyperlink{main_8cpp_af1e17530d166fefad67b5f4126a1ba99}{update\+Encoder}} ()
+\begin{DoxyCompactList}\small\item\em Updates encoder value on interrupt. \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{main_8cpp_a30273c9408068d204d643a7ac221b34e}{PID}} (void $\ast$parameter)
+\begin{DoxyCompactList}\small\item\em The PID, outputs pwm signal to the fan. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{main_8cpp_a9fecb87fc7751161ab0df247e5a60dda}\label{main_8cpp_a9fecb87fc7751161ab0df247e5a60dda}} 
+void {\bfseries serial\+Read} (void $\ast$)
+\item 
+\mbox{\Hypertarget{main_8cpp_ab00c9e177b4fd36cde4370e4822d0d67}\label{main_8cpp_ab00c9e177b4fd36cde4370e4822d0d67}} 
+void {\bfseries serial\+Write} (void $\ast$)
+\item 
+\mbox{\Hypertarget{main_8cpp_aef68e49eb90ce86fe498ffc757de5141}\label{main_8cpp_aef68e49eb90ce86fe498ffc757de5141}} 
+void {\bfseries emergency\+Stop} ()
+\begin{DoxyCompactList}\small\item\em Stops all functions to \char`\"{}shutdown\char`\"{} the system. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{main_8cpp_aca7ee2810b2adeaad7023238aa18c1ce}{freq\+To\+Time}} (int freq)
+\begin{DoxyCompactList}\small\item\em Converts frequency (Hz) to time (ms) delay to be used to change the PID frequency. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{main_8cpp_ac3b63746dc4a3ba4fb04e5845dae3de7}\label{main_8cpp_ac3b63746dc4a3ba4fb04e5845dae3de7}} 
+void {\bfseries recv\+With\+Start\+End\+Markers} ()
+\begin{DoxyCompactList}\small\item\em Receive data from Serial with start and end markers. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{main_8cpp_a144afaa8be70ffa6c5732190be274626}\label{main_8cpp_a144afaa8be70ffa6c5732190be274626}} 
+void {\bfseries parse\+Data} ()
+\begin{DoxyCompactList}\small\item\em Takes the serial data and splits the data in to its parts. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{main_8cpp_a4fc01d736fe50cf5b977f755b675f11d}\label{main_8cpp_a4fc01d736fe50cf5b977f755b675f11d}} 
+void {\bfseries setup} ()
+\item 
+\mbox{\Hypertarget{main_8cpp_afe461d27b9c48d5921c00d521181f12f}\label{main_8cpp_afe461d27b9c48d5921c00d521181f12f}} 
+void {\bfseries loop} ()
+\begin{DoxyCompactList}\small\item\em An empty function because the Free\+RTOS program runs in tasks. \end{DoxyCompactList}\item 
+\mbox{\Hypertarget{main_8cpp_ad39420cdd896dd12c68e36313139d0a5}\label{main_8cpp_ad39420cdd896dd12c68e36313139d0a5}} 
+{\bfseries ISR} (TIMER1\+\_\+\+COMPA\+\_\+vect)
+\begin{DoxyCompactList}\small\item\em Construct a new ISR object for Timer 1. \end{DoxyCompactList}\end{DoxyCompactItemize}
+\doxysubsection*{Variables}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\Hypertarget{main_8cpp_a642a4265a30ef969b172df7c201b94b0}\label{main_8cpp_a642a4265a30ef969b172df7c201b94b0}} 
+Semaphore\+Handle\+\_\+t {\bfseries x\+Serial\+Semaphore}
+\item 
+\mbox{\Hypertarget{main_8cpp_a1c5f79d59997a6bce12ec5a2f57e54bb}\label{main_8cpp_a1c5f79d59997a6bce12ec5a2f57e54bb}} 
+Task\+Handle\+\_\+t {\bfseries x\+PIDHandle} = NULL
+\item 
+\mbox{\Hypertarget{main_8cpp_a68a6151b9aa021a56a6de351b2c7fe41}\label{main_8cpp_a68a6151b9aa021a56a6de351b2c7fe41}} 
+Task\+Handle\+\_\+t {\bfseries x\+Write\+Handle} = NULL
+\item 
+\mbox{\Hypertarget{main_8cpp_a989910802d03a90abe8ee2a58e9b141e}\label{main_8cpp_a989910802d03a90abe8ee2a58e9b141e}} 
+Task\+Handle\+\_\+t {\bfseries x\+Read\+Handle} = NULL
+\item 
+\mbox{\Hypertarget{main_8cpp_a2f45113638a0b749a8a205d2cd7fb42b}\label{main_8cpp_a2f45113638a0b749a8a205d2cd7fb42b}} 
+int {\bfseries running} = 1
+\item 
+\mbox{\Hypertarget{main_8cpp_a2f5195319dcde7607f3385391a36fc36}\label{main_8cpp_a2f5195319dcde7607f3385391a36fc36}} 
+int {\bfseries auto\+\_\+mode} = 1
+\item 
+\mbox{\Hypertarget{main_8cpp_ad634fa45011a2712c573351a2cc602a3}\label{main_8cpp_ad634fa45011a2712c573351a2cc602a3}} 
+const uint16\+\_\+t {\bfseries t1\+\_\+load} = 0
+\item 
+\mbox{\Hypertarget{main_8cpp_a700ac3ca34731ff591ae2f7f2a2ad3db}\label{main_8cpp_a700ac3ca34731ff591ae2f7f2a2ad3db}} 
+const uint16\+\_\+t {\bfseries t1\+\_\+comp} = 16000
+\item 
+\mbox{\Hypertarget{main_8cpp_aa081167d5312d0401296be66da3dd143}\label{main_8cpp_aa081167d5312d0401296be66da3dd143}} 
+volatile int {\bfseries last\+Encoded} = 0
+\item 
+\mbox{\Hypertarget{main_8cpp_a4dba51ac802e7e62a87d0ccc37bcdb2d}\label{main_8cpp_a4dba51ac802e7e62a87d0ccc37bcdb2d}} 
+volatile long {\bfseries encoder\+Value} = 0
+\item 
+\mbox{\Hypertarget{main_8cpp_a79dea7ed146af26ff4a0ba4bf5c83eee}\label{main_8cpp_a79dea7ed146af26ff4a0ba4bf5c83eee}} 
+double {\bfseries angle}
+\item 
+\mbox{\Hypertarget{main_8cpp_ab103a007431a6f929dc3433431fc03f4}\label{main_8cpp_ab103a007431a6f929dc3433431fc03f4}} 
+long {\bfseries lastencoder\+Value} = 0
+\item 
+\mbox{\Hypertarget{main_8cpp_ac6390bc2d074992cc6ca37d132a5262d}\label{main_8cpp_ac6390bc2d074992cc6ca37d132a5262d}} 
+double {\bfseries kp}
+\item 
+\mbox{\Hypertarget{main_8cpp_a23e09706a4abb026e1de279c4904e926}\label{main_8cpp_a23e09706a4abb026e1de279c4904e926}} 
+double {\bfseries ki}
+\item 
+\mbox{\Hypertarget{main_8cpp_a1cf17dd45e85748457863776dcb28335}\label{main_8cpp_a1cf17dd45e85748457863776dcb28335}} 
+double {\bfseries kd}
+\item 
+\mbox{\Hypertarget{main_8cpp_a4293f306d877b352a9574506c4196b27}\label{main_8cpp_a4293f306d877b352a9574506c4196b27}} 
+int {\bfseries set\+\_\+point}
+\item 
+\mbox{\Hypertarget{main_8cpp_a1ec236df65b93a338aecdf3fa64790f9}\label{main_8cpp_a1ec236df65b93a338aecdf3fa64790f9}} 
+double {\bfseries error}
+\item 
+\mbox{\Hypertarget{main_8cpp_a490a9e9e2b50ef1774453ae170fc60a1}\label{main_8cpp_a490a9e9e2b50ef1774453ae170fc60a1}} 
+int {\bfseries pwm}
+\item 
+\mbox{\Hypertarget{main_8cpp_aed08c8478a62910aab06ba708a0e5b5f}\label{main_8cpp_aed08c8478a62910aab06ba708a0e5b5f}} 
+double {\bfseries u}
+\item 
+\mbox{\Hypertarget{main_8cpp_afe4adf197fc6ec15c9341446d8f4c466}\label{main_8cpp_afe4adf197fc6ec15c9341446d8f4c466}} 
+const byte {\bfseries num\+Chars} = 48
+\item 
+\mbox{\Hypertarget{main_8cpp_a8972b9a588f5736ca4e5d8b6f08bb08b}\label{main_8cpp_a8972b9a588f5736ca4e5d8b6f08bb08b}} 
+char {\bfseries received\+Chars} \mbox{[}num\+Chars\mbox{]}
+\item 
+\mbox{\Hypertarget{main_8cpp_a5d547ae6451858d6fe3118108823fbdc}\label{main_8cpp_a5d547ae6451858d6fe3118108823fbdc}} 
+boolean {\bfseries new\+Data} = false
+\item 
+\mbox{\Hypertarget{main_8cpp_a4d4e1ff6898c6a376081efc7fb39317e}\label{main_8cpp_a4d4e1ff6898c6a376081efc7fb39317e}} 
+char {\bfseries temp\+Chars} \mbox{[}num\+Chars\mbox{]}
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+Controlling a 1DOF helicopter angle using a PID controller using a Free\+RTOS implementation. 
+
+\begin{DoxyAuthor}{Author}
+Ivo de Maijer 
+\end{DoxyAuthor}
+\begin{DoxyVersion}{Version}
+1 
+\end{DoxyVersion}
+\begin{DoxyDate}{Date}
+2022-\/04-\/28
+\end{DoxyDate}
+\begin{DoxyCopyright}{Copyright}
+Copyright (c) 2022 
+\end{DoxyCopyright}
+
+
+\doxysubsection{Function Documentation}
+\mbox{\Hypertarget{main_8cpp_aca7ee2810b2adeaad7023238aa18c1ce}\label{main_8cpp_aca7ee2810b2adeaad7023238aa18c1ce}} 
+\index{main.cpp@{main.cpp}!freqToTime@{freqToTime}}
+\index{freqToTime@{freqToTime}!main.cpp@{main.cpp}}
+\doxysubsubsection{\texorpdfstring{freqToTime()}{freqToTime()}}
+{\footnotesize\ttfamily int freq\+To\+Time (\begin{DoxyParamCaption}\item[{int}]{freq }\end{DoxyParamCaption})}
+
+
+
+Converts frequency (Hz) to time (ms) delay to be used to change the PID frequency. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em freq} & Frequency in Hz \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+int Time delay in milliseconds 
+\end{DoxyReturn}
+\mbox{\Hypertarget{main_8cpp_a30273c9408068d204d643a7ac221b34e}\label{main_8cpp_a30273c9408068d204d643a7ac221b34e}} 
+\index{main.cpp@{main.cpp}!PID@{PID}}
+\index{PID@{PID}!main.cpp@{main.cpp}}
+\doxysubsubsection{\texorpdfstring{PID()}{PID()}}
+{\footnotesize\ttfamily void PID (\begin{DoxyParamCaption}\item[{void $\ast$}]{parameter }\end{DoxyParamCaption})}
+
+
+
+The PID, outputs pwm signal to the fan. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em parameter} & \\
+\hline
+\end{DoxyParams}
+\mbox{\Hypertarget{main_8cpp_af1e17530d166fefad67b5f4126a1ba99}\label{main_8cpp_af1e17530d166fefad67b5f4126a1ba99}} 
+\index{main.cpp@{main.cpp}!updateEncoder@{updateEncoder}}
+\index{updateEncoder@{updateEncoder}!main.cpp@{main.cpp}}
+\doxysubsubsection{\texorpdfstring{updateEncoder()}{updateEncoder()}}
+{\footnotesize\ttfamily void update\+Encoder (\begin{DoxyParamCaption}{ }\end{DoxyParamCaption})}
+
+
+
+Updates encoder value on interrupt. 
+
+Is attached to INT0 and INT1 (pin 2 and pin 3) and executed on CHANGE of either interrupts thus, 1600 interrupts per revolution 
