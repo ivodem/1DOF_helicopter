@@ -86,7 +86,10 @@ static unsigned int task2 = 0; // task2 count
 static unsigned int task3 = 0; // task3 count
 bool printed = false;
 #endif
-
+/**
+ * @brief Default Arduino setup function
+ * Setup for timer1, Serial, Pinmodes, semaphores, and FreeRTOS tasks
+ */
 void setup()
 {
   /* Timer 1 settings */
